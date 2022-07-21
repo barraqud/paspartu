@@ -110,5 +110,5 @@ dist
 
 # Docker dist
 
-word_editor_db/
-.code-workspace
+paspartuDB/
+*.code-workspace
