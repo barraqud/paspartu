@@ -1,0 +1,59 @@
+version: "3.8"
+
+services:
+  mongodb:
+    image: mongo:focal
+    environment:
+      MONGO_INITDB_DATABASE: ${DB_NAME}
+      MONGO_INITDB_ROOT_USERNAME: ${DB_USER}
+      MONGO_INITDB_ROOT_PASSWORD: ${DB_PASSWORD}
+    ports:
+     - ${DB_PORT}:${DB_PORT}
+    volumes:
+     - ./${DB_NAME}:/var/lib/mongodb/data
+    restart: always
+    healthcheck:
+      test: echo 'db.runCommand({serverStatus:1}).ok' | mongo admin -u ${DB_USER} -p ${DB_PASSWORD} --quiet | grep 1
+      timeout: 45s
+      interval: 10s
+      retries: 10
+      start_period: 30s
+    command: -p ${DB_PORT}
+  server:
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    build:
+      context: ./server
+      dockerfile: Dockerfile.prod
+    environment:
+      NODE_ENV: ${SERVER_NODE_ENV}
+      PORT: ${SERVER_PORT}
+      SECRET_KEY: ${SECRET_KEY}
+      DB_HOST: ${DB_HOST}
+      DB_PORT: ${DB_PORT}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_NAME}
+    ports:
+     - ${SERVER_PORT}:${SERVER_PORT}
+    restart: unless-stopped
+    volumes:
+     - /app/node_modules
+  client:
+    build:
+      context: ./client
+      dockerfile: Dockerfile.prod
+    environment:
+      NODE_ENV: ${CLIENT_NODE_ENV}
+      REACT_APP_API_URL: ${REACT_APP_API_URL}
+      REACT_APP_API_PORT: ${SERVER_PORT}
+    volumes:
+     - ./client/build:/app/build
+     - /app/node_modules
+  nginx:
+    image: nginx:alpine
+    ports:
+     - 80:80
+    volumes:
+     - ./client/build:/usr/share/nginx/html

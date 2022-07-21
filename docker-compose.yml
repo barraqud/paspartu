@@ -1,0 +1,78 @@
+version: "3.8"
+
+services:
+  mongodb:
+    image: mongo:focal
+    container_name: mongodb
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${DB_USER}
+      MONGO_INITDB_ROOT_PASSWORD: ${DB_PASSWORD}
+      MONGO_INITDB_DATABASE: ${DB_NAME}
+    networks:
+      - paspartu
+    ports:
+     - ${DB_PORT}:${DB_PORT}
+    volumes:
+     - paspartuDB:/var/lib/mongodb/data
+    restart: always
+    healthcheck:
+      test: echo 'db.runCommand({serverStatus:1}).ok' | mongo admin -u ${DB_USER} -p ${DB_PASSWORD} | grep 1
+      timeout: 45s
+      interval: 10s
+      retries: 3
+      start_period: 45s
+    command: --quiet
+  server:
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: server
+    environment:
+      NODE_ENV: ${SERVER_NODE_ENV}
+      PORT: ${SERVER_PORT}
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      DB_NAME: ${DB_NAME}
+      DB_HOST: ${DB_HOST}
+      DB_PORT: ${DB_PORT}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      SMTP_HOST: ${SMTP_HOST}
+      SMTP_PORT: ${SMTP_PORT}
+      SMTP_USER: ${SMTP_USER}
+      SMTP_PASSWORD: ${SMTP_PASSWORD}
+    networks:
+      - paspartu
+    ports:
+     - ${SERVER_PORT}:${SERVER_PORT}
+    restart: unless-stopped
+    volumes:
+     - ./server:/app
+  client:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+    container_name: client
+    environment:
+      NODE_ENV: ${CLIENT_NODE_ENV}
+      REACT_APP_API_URL: ${REACT_APP_API_URL}
+      REACT_APP_API_PORT: ${SERVER_PORT}
+    volumes:
+     - ./client/src:/app/src
+     - ./client/public:/app/public
+     - /app/node_modules
+    networks:
+      - paspartu
+    ports:
+      - ${CLIENT_PORT}:${CLIENT_PORT}
+    stdin_open: true
+    tty: true
+networks:
+  paspartu:
+    driver: bridge
+volumes:
+  paspartuDB:
+    driver: local
